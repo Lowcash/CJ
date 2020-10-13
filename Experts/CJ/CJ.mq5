@@ -14,7 +14,7 @@
 //| Expert initialization function                                   |
 //+------------------------------------------------------------------+
 int OnInit() {
-   return(INIT_SUCCEEDED); 
+   return(INIT_SUCCEEDED);
 }
 
 void OnTick() {
