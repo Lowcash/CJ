@@ -17,9 +17,11 @@
 MovingAverageSettings		_FastTrendMASettings(_Symbol, PERIOD_H1, MODE_EMA, PRICE_CLOSE, 8, 0);
 MovingAverageSettings		_SlowTrendMASettings(_Symbol, PERIOD_H1, MODE_EMA, PRICE_CLOSE, 21, 0);
 
-ObjectBuffer               _MarkersBuffer("Marker", 999999);
+IchimokuSettings           _IchimokuSettings(_Symbol, PERIOD_H1, 9, 26, 52, 0);
 
-TrendManager               _TrendManager(999999);
+ObjectBuffer               _MarkersBuffer("Marker", 9999);
+
+TrendManager               _TrendManager(9999);
 
 //+------------------------------------------------------------------+
 //| Expert initialization function                                   |
@@ -33,7 +35,8 @@ void OnTick() {
    
    // Trend analysis
    if(IsNewBar(PERIOD_H1)) {
-   	const Trend::State _TrendState = _TrendManager.AnalyzeByIMAOutCandles(1, _FastTrendMASettings, _SlowTrendMASettings);
+   	//const Trend::State _TrendState = _TrendManager.AnalyzeByIMAOutCandles(_FastTrendMASettings, _SlowTrendMASettings, 1);
+   	const Trend::State _TrendState = _TrendManager.AnalyzeByIchimokuTracing(_IchimokuSettings, KIJUNSEN_LINE, false);
    	
       if(_TrendManager.GetCurrentState() == Trend::State::VALID_UPTREND) {
          _MarkersBuffer.GetNewObjectId();
