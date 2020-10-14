@@ -1,4 +1,6 @@
-﻿/Images
+﻿*
+/.git*
+/Images
 /Logs
 /Profiles/Charts
 /Profiles/SymbolSets
