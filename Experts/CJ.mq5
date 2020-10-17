@@ -13,7 +13,9 @@
 
 #include "../Core/Signal/_Indicators/_IndicatorParser.mqh"
 #include "../Core/Signal/Trend/TrendManager.mqh"
+#include "../Core/Signal/Crossover/CrossoverManager.mqh"
 #include "../Core/Signal/_Indicators/MovingAverage.mqh"
+#include "../Core/Signal/_Indicators/Ichimoku.mqh"
 
 MovingAverageSettings		_FastTrendMASettings(_Symbol, PERIOD_H1, MODE_EMA, PRICE_CLOSE, 8, 0);
 MovingAverageSettings		_SlowTrendMASettings(_Symbol, PERIOD_H1, MODE_EMA, PRICE_CLOSE, 21, 0);
@@ -23,6 +25,10 @@ IchimokuSettings           _IchimokuSettings(_Symbol, PERIOD_H1, 9, 26, 52, 0);
 ObjectBuffer               _MarkersBuffer("Marker", 9999);
 
 TrendManager               _TrendManager(9999);
+CrossoverManager           _CrossoverManager(9999);
+
+bool                       _IsPrevCrossoverSenkouSpanA = false;
+bool                       _IsPrevCrossoverSenkouSpanB = false;
 
 //+------------------------------------------------------------------+
 //| Expert initialization function                                   |
@@ -32,40 +38,60 @@ int OnInit() {
 }
 
 void OnTick() {
+   // Do the necessary things first
    UpdatePredefinedVars();
+   //+------------------------------------------------------------------+
    
-   // Trend analysis
-   if(IsNewBar(PERIOD_H1)) {
-      MovingAverage _MAFast[]; IndicatorParser::GetMovingAverageValues(_MAFast, _FastTrendMASettings, 1, 1);
-      MovingAverage _MASlow[]; IndicatorParser::GetMovingAverageValues(_MASlow, _SlowTrendMASettings, 1, 1);
-      
-      double _MAFastValues[]; GetMovingAverage(_MAFast, _MAFastValues);
-      double _MASlowValues[]; GetMovingAverage(_MASlow, _MASlowValues);
-      double _MAValues[];
-      
-      ArrayInsert(_MAValues, _MAFastValues, ArraySize(_MAValues));
-      ArrayInsert(_MAValues, _MASlowValues, ArraySize(_MAValues));
-      
-   	const Trend::State _TrendState = _TrendManager.AnalyzeByTrendByCandlePosition(Close[1], _MAValues, ArraySize(_MAValues) - 1, true, true);
-   	//const Trend::State _TrendState = _TrendManager.AnalyzeByIchimokuTracing(_IchimokuSettings, KIJUNSEN_LINE, false);
-   	
-      if(_TrendState == Trend::State::VALID_UPTREND || _TrendState == Trend::State::VALID_DOWNTREND) {
-         _MarkersBuffer.GetNewObjectId();
-      }
-   }
+   const bool _IsNewHour = IsNewBar(PERIOD_H1);
    
-   // Draw objects into the chart
-   if(_Period == PERIOD_H1) {
-   	Trend* _SelectedTrend = _TrendManager.GetSelectedTrend();
+   // Crossover analysis
+   if(_IsNewHour) {
+      Ichimoku _Ichimoku[]; IndicatorParser::GetIchimokuValues(_Ichimoku, _IchimokuSettings, 1, 2);
 
-      if(_TrendManager.GetCurrentState() == Trend::State::VALID_UPTREND) {
-         DrawTrendMarker(_MarkersBuffer.GetSelecterObjectId(), iTimeMQL4(_Symbol, PERIOD_H1, 0), Low[0], true, clrForestGreen);
-         DrawTrendMarker(_SelectedTrend.GetSignalID(), _SelectedTrend.GetBeginDateTime(), _SelectedTrend.GetHighestValue(), _SelectedTrend.GetEndDateTime(), _SelectedTrend.GetLowestValue(), clrForestGreen);
+      double _IchimokuTenkanSen[]; GetTenkanSen(_Ichimoku, _IchimokuTenkanSen);
+      double _IchimokuKijunSen[]; GetKijunSen(_Ichimoku, _IchimokuKijunSen);
+      double _IchimokuChikouSpan[]; GetChikouSpan(_Ichimoku, _IchimokuChikouSpan);
+      double _IchimokuSenkouSpanA[], _IchimokuSenkouSpanB[]; GetSenkouSpan(_Ichimoku, _IchimokuSenkouSpanA, _IchimokuSenkouSpanB);
+      
+      double _ClosePrices[2]; _ClosePrices[0] = Close[1]; _ClosePrices[1] = Close[2];
+      
+      // Analysis Price/Cloud Crossover
+      const bool _IsCrossoverSenkouSpanA = _CrossoverManager.AnalyzeByValueComparer(_ClosePrices, _IchimokuSenkouSpanA) != Crossover::State::INVALID_CROSSOVER;
+      const bool _IsCrossoverSenkouSpanB = _CrossoverManager.AnalyzeByValueComparer(_ClosePrices, _IchimokuSenkouSpanB) != Crossover::State::INVALID_CROSSOVER;
+      
+      if(_IsCrossoverSenkouSpanA && _IsCrossoverSenkouSpanB) {
+         DrawArrowMarker(_MarkersBuffer.GetNewObjectId(), Time[1], Close[1], true, clrGoldenrod);
+      } else {
+         if((_IsPrevCrossoverSenkouSpanA && _IsCrossoverSenkouSpanB) ||
+            (_IsPrevCrossoverSenkouSpanB && _IsCrossoverSenkouSpanA)) {
+            _IsPrevCrossoverSenkouSpanA = false;
+            _IsPrevCrossoverSenkouSpanB = false;
+            
+            DrawArrowMarker(_MarkersBuffer.GetNewObjectId(), Time[1], Close[1], true, clrGoldenrod);
+         } else {
+            if(_IsCrossoverSenkouSpanA) {
+               _IsPrevCrossoverSenkouSpanA = !_IsPrevCrossoverSenkouSpanA;
+            }
+            if(_IsCrossoverSenkouSpanB) {
+               _IsPrevCrossoverSenkouSpanB = !_IsPrevCrossoverSenkouSpanB;
+            }
+         }
       }
-      if(_TrendManager.GetCurrentState() == Trend::State::VALID_DOWNTREND) {
-         DrawTrendMarker(_MarkersBuffer.GetSelecterObjectId(), iTimeMQL4(_Symbol, PERIOD_H1, 0), Low[0], false, clrCrimson);
-         DrawTrendMarker(_SelectedTrend.GetSignalID(), _SelectedTrend.GetBeginDateTime(), _SelectedTrend.GetLowestValue(), _SelectedTrend.GetEndDateTime(), _SelectedTrend.GetHighestValue(), clrCrimson);
+      
+      // Analysis Price/KijunSen Crossover
+      if(_CrossoverManager.AnalyzeByValueComparer(_ClosePrices, _IchimokuKijunSen) != Crossover::State::INVALID_CROSSOVER) {
+         DrawArrowMarker(_MarkersBuffer.GetNewObjectId(), Time[1], Low[1], true, clrDarkOrchid);
       }
+      
+      // Analysis TenkanSen/KijunSen Crossover
+      if(_CrossoverManager.AnalyzeByValueComparer(_IchimokuTenkanSen, _IchimokuKijunSen) != Crossover::State::INVALID_CROSSOVER) {
+         Crossover *_SelectedCrossover = _CrossoverManager.GetSelectedCrossover();
+         
+         DrawRectangeMarker(_SelectedCrossover.GetSignalID(), _SelectedCrossover.GetBeginDateTime(), _SelectedCrossover.GetBeginValue(), _SelectedCrossover.GetEndDateTime(), _SelectedCrossover.GetEndValue(), clrDeepPink);
+         //DrawArrowMarker(_MarkersBuffer.GetNewObjectId(), Time[1], Close[1], true, clrDeepPink);
+      }
+      
+      Comment(StringFormat("Cloud color is %s", EnumToString(_IchimokuSenkouSpanA[0] > _IchimokuSenkouSpanB[1] ? CloudColor::BULL : CloudColor::BEAR)));
    }
 }
 //+------------------------------------------------------------------+
