@@ -11,6 +11,7 @@
 #include "../Core/Include/Common.mqh"
 #include "../Core/Include/Draw.mqh"
 
+#include "../Core/Signal/_Indicators/_IndicatorParser.mqh"
 #include "../Core/Signal/Trend/TrendManager.mqh"
 #include "../Core/Signal/_Indicators/MovingAverage.mqh"
 
@@ -35,14 +36,21 @@ void OnTick() {
    
    // Trend analysis
    if(IsNewBar(PERIOD_H1)) {
-   	//const Trend::State _TrendState = _TrendManager.AnalyzeByIMAOutCandles(_FastTrendMASettings, _SlowTrendMASettings, 1);
-   	const Trend::State _TrendState = _TrendManager.AnalyzeByIchimokuTracing(_IchimokuSettings, KIJUNSEN_LINE, false);
+      MovingAverage _MAFast[]; IndicatorParser::GetMovingAverageValues(_MAFast, _FastTrendMASettings, 1, 1);
+      MovingAverage _MASlow[]; IndicatorParser::GetMovingAverageValues(_MASlow, _SlowTrendMASettings, 1, 1);
+      
+      double _MAFastValues[]; GetMovingAverage(_MAFast, _MAFastValues);
+      double _MASlowValues[]; GetMovingAverage(_MASlow, _MASlowValues);
+      double _MAValues[];
+      
+      ArrayInsert(_MAValues, _MAFastValues, ArraySize(_MAValues));
+      ArrayInsert(_MAValues, _MASlowValues, ArraySize(_MAValues));
+      
+   	const Trend::State _TrendState = _TrendManager.AnalyzeByTrendByCandlePosition(Close[1], _MAValues, ArraySize(_MAValues) - 1, true, true);
+   	//const Trend::State _TrendState = _TrendManager.AnalyzeByIchimokuTracing(_IchimokuSettings, KIJUNSEN_LINE, false);
    	
-      if(_TrendManager.GetCurrentState() == Trend::State::VALID_UPTREND) {
+      if(_TrendState == Trend::State::VALID_UPTREND || _TrendState == Trend::State::VALID_DOWNTREND) {
          _MarkersBuffer.GetNewObjectId();
-      }
-      if(_TrendManager.GetCurrentState() == Trend::State::VALID_DOWNTREND) {
-         _MarkersBuffer.GetNewObjectId();   
       }
    }
    
