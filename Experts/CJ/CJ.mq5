@@ -17,7 +17,9 @@
 #include "../../Core/Signal/Crossover/CrossoverManager.mqh"
 #include "../../Core/Signal/Relation/RelationManager.mqh"
 
-#include <Trade/Trade.mqh>
+#include "CJTradeManager.mqh"
+
+input double               _LotSize = 0.01;
 
 MovingAverageSettings		_FastTrendMASettings(_Symbol, PERIOD_H1, MODE_EMA, PRICE_CLOSE, 8, 0);
 MovingAverageSettings		_SlowTrendMASettings(_Symbol, PERIOD_H1, MODE_EMA, PRICE_CLOSE, 21, 0);
@@ -32,10 +34,10 @@ RelationManager            _PriceKijunSenRelation(9999);
 RelationManager            _TenkanSenKijunSenRelation(9999);
 RelationManager            _ChikouSpanPriceRelation(9999);
 
+CJTradeManager             _CJTradeManager();
+
 bool                       _IsPrevCrosSenkouSpanA = false;
 bool                       _IsPrevCrosSenkouSpanB = false;
-
-CTrade                     _TradeFunc;
 
 //+------------------------------------------------------------------+
 //| Expert initialization function                                   |
@@ -81,9 +83,6 @@ void OnTick() {
       }
       
       if(_IsPrevCrosSenkouSpanA && _IsPrevCrosSenkouSpanB) {
-         _IsPrevCrosSenkouSpanA = false;
-         _IsPrevCrosSenkouSpanB = false;
-         
          double _ClosePricesTwoCurr[2]; _ClosePricesTwoCurr[0] = Close[1]; _ClosePricesTwoCurr[1] = Close[2];
          double _IchimokuSenkouSpanATwoCurr[], _IchimokuSenkouSpanBTwoCurr[]; GetSenkouSpan(_IchimokuTwoCurr, _IchimokuSenkouSpanATwoCurr, _IchimokuSenkouSpanBTwoCurr);
          
@@ -95,6 +94,9 @@ void OnTick() {
          DrawArrowMarker(_MarkersBuffer.GetNewObjectId(), _SelectedCrossover.GetEndDateTime(), _SelectedCrossover.GetBeginValue(), _TrendState == Trend::State::VALID_UPTREND, clrBlack);
          
          if(!(_IsCrossoverSenkouSpanA || _IsCrossoverSenkouSpanB)) {
+            _IsPrevCrosSenkouSpanA = false;
+            _IsPrevCrosSenkouSpanB = false;
+            
             DrawArrowMarker(_MarkersBuffer.GetNewObjectId(), _SelectedCrossover.GetEndDateTime(), _SelectedCrossover.GetBeginValue(), _TrendState == Trend::State::VALID_UPTREND, clrGoldenrod);
             
             uint _Points = 0;
@@ -145,18 +147,10 @@ void OnTick() {
             
             if(_Points >= 10) {
                if(_TrendState == Trend::State::VALID_UPTREND) {
-                  const double _StopLoss = MathMin(_IchimokuSenkouSpanATwoPrev[0], _IchimokuSenkouSpanBTwoPrev[0]) - 5 * GetForexPipValue();
-                  const double _Distance = GetNumPipsBetweenPrices(Bid, _StopLoss, GetForexPipValue());
-                  const double _TakeProf = _ClosePricesTwoPrev[0] + (_Distance * 1.5) * GetForexPipValue();
-                  
-                  _TradeFunc.Buy(0.1, _Symbol, 0.0, _StopLoss, _TakeProf);
+                  _CJTradeManager.TryOpenOrder(ORDER_TYPE_BUY, _LotSize, _IchimokuSenkouSpanATwoPrev[0], _IchimokuSenkouSpanBTwoPrev[0], _ClosePricesTwoPrev[0], 5);
                }
                if(_TrendState == Trend::State::VALID_DOWNTREND) {
-                  const double _StopLoss = MathMax(_IchimokuSenkouSpanATwoPrev[0], _IchimokuSenkouSpanBTwoPrev[0]) + 5 * GetForexPipValue();
-                  const double _Distance = GetNumPipsBetweenPrices(Bid, _StopLoss, GetForexPipValue());
-                  const double _TakeProf = _ClosePricesTwoPrev[0] - (_Distance * 1.5) * GetForexPipValue();
-                  
-                  _TradeFunc.Sell(0.1, _Symbol, 0.0, _StopLoss, _TakeProf);
+                  _CJTradeManager.TryOpenOrder(ORDER_TYPE_SELL, _LotSize, _IchimokuSenkouSpanATwoPrev[0], _IchimokuSenkouSpanBTwoPrev[0], _ClosePricesTwoPrev[0], 5);
                }
                
                //if(_IsPriceKijunSen) {
@@ -210,5 +204,4 @@ void OnTradeTransaction(const MqlTradeTransaction &p_Trans, const MqlTradeReques
       }
    }
 }
-
 //+------------------------------------------------------------------+
