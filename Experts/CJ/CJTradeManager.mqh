@@ -83,14 +83,15 @@ bool CJTradeManager::TryOpenOrder(const ENUM_ORDER_TYPE p_OrderType, const doubl
 
 void CJTradeManager::AnalyzeTrades(const double p_IchimokuSenkouSpanA, const double p_IchimokuSenkouSpanB, const uint p_PipTradeOffset) {
    ForEachCObject(_CJTrade, m_CJTrades) {
-      double _StopLoss = ((CJTrade*)_CJTrade).GetStopLoss();
+      const double _StopLoss = NormalizeDouble(((CJTrade*)_CJTrade).GetStopLoss(), _Digits);
       
       switch(((CJTrade*)_CJTrade).GetOrderType()) {
          case ORDER_TYPE_BUY: {
-            const double _NewStopLoss = MathMin(p_IchimokuSenkouSpanA, p_IchimokuSenkouSpanB) - (m_PipValue * p_PipTradeOffset);
+            const double _NewStopLoss = NormalizeDouble(MathMin(p_IchimokuSenkouSpanA, p_IchimokuSenkouSpanB) - (m_PipValue * p_PipTradeOffset), _Digits);
             
             if(p_IchimokuSenkouSpanA > p_IchimokuSenkouSpanB &&
-               _NewStopLoss > _StopLoss) {
+               _StopLoss != _NewStopLoss &&
+               Bid > _NewStopLoss && _NewStopLoss > _StopLoss) {
                
                if(PositionSelectByTicket(((CJTrade*)_CJTrade).GetTicket())) {
       	         if(_TradeFunc.PositionModify(((CJTrade*)_CJTrade).GetTicket(), _NewStopLoss, PositionGetDouble(POSITION_TP))) {
@@ -106,10 +107,11 @@ void CJTradeManager::AnalyzeTrades(const double p_IchimokuSenkouSpanA, const dou
             break;
          }
          case ORDER_TYPE_SELL: {
-            const double _NewStopLoss = MathMax(p_IchimokuSenkouSpanA, p_IchimokuSenkouSpanB) + (m_PipValue * p_PipTradeOffset);
+            const double _NewStopLoss = NormalizeDouble(MathMax(p_IchimokuSenkouSpanA, p_IchimokuSenkouSpanB) + (m_PipValue * p_PipTradeOffset), _Digits);
             
             if(p_IchimokuSenkouSpanB > p_IchimokuSenkouSpanA &&
-               _NewStopLoss < _StopLoss) {
+               _StopLoss != _NewStopLoss &&
+               Bid < _NewStopLoss && _NewStopLoss < _StopLoss) {
                
                if(PositionSelectByTicket(((CJTrade*)_CJTrade).GetTicket())) {
       	         if(_TradeFunc.PositionModify(((CJTrade*)_CJTrade).GetTicket(), _NewStopLoss, PositionGetDouble(POSITION_TP))) {
