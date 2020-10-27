@@ -25,6 +25,8 @@ class CJTradeManager : public _TradeManager {
  	void HandleOrderDelete(const ulong p_Ticket);
  	void HandleMakeDeal(const ulong p_Ticket);
  	
+ 	void AnalyzeTrades(const double p_IchimokuSenkouSpanA, const double p_IchimokuSenkouSpanB, const uint p_PipOffset);
+ 	
    bool TryOpenOrder(const ENUM_ORDER_TYPE p_OrderType, const double p_LotSize, const double p_IchimokuSenkouSpanA, const double p_IchimokuSenkouSpanB, const double p_CloseCandlePrice, const uint p_PipOffset);
 };
 
@@ -73,8 +75,67 @@ bool CJTradeManager::TryOpenOrder(const ENUM_ORDER_TYPE p_OrderType, const doubl
    }
    
    if(_ResultTicket != -1) {
-      m_CJTrades.Add(new CJTrade(_StopLoss));
+      m_CJTrades.Add(new CJTrade(_ResultTicket, p_OrderType, _StopLoss));
    }
 
    return(_ResultTicket != -1);
+}
+
+void CJTradeManager::AnalyzeTrades(const double p_IchimokuSenkouSpanA, const double p_IchimokuSenkouSpanB, const uint p_PipOffset) {
+   ForEachCObject(_CJTrade, m_CJTrades) {
+      double _StopLoss = ((CJTrade*)_CJTrade).GetStopLoss();
+      
+      switch(((CJTrade*)_CJTrade).GetOrderType()) {
+         case ORDER_TYPE_BUY: {
+            const double _NewStopLoss = MathMin(p_IchimokuSenkouSpanA, p_IchimokuSenkouSpanB) - (m_PipValue * p_PipOffset);
+            
+            if(p_IchimokuSenkouSpanA > p_IchimokuSenkouSpanB &&
+               _NewStopLoss > _StopLoss) {
+               
+               if(PositionSelectByTicket(((CJTrade*)_CJTrade).GetTicket())) {
+      	         if(_TradeFunc.PositionModify(((CJTrade*)_CJTrade).GetTicket(), _NewStopLoss, PositionGetDouble(POSITION_TP))) {
+      				   ((CJTrade*)_CJTrade).SetStopLoss(_NewStopLoss);
+      				   
+      				   const uint _ResultCode = _TradeFunc.ResultRetcode();
+      				} else {
+      				   Print("PositionModify failed with error #", GetLastError());
+      				} 
+   	         }
+            }
+            
+            break;
+         }
+         case ORDER_TYPE_SELL: {
+            const double _NewStopLoss = MathMax(p_IchimokuSenkouSpanA, p_IchimokuSenkouSpanB) + (m_PipValue * p_PipOffset);
+            
+            if(p_IchimokuSenkouSpanB > p_IchimokuSenkouSpanA &&
+               _NewStopLoss < _StopLoss) {
+               
+               if(PositionSelectByTicket(((CJTrade*)_CJTrade).GetTicket())) {
+      	         if(_TradeFunc.PositionModify(((CJTrade*)_CJTrade).GetTicket(), _NewStopLoss, PositionGetDouble(POSITION_TP))) {
+      				   ((CJTrade*)_CJTrade).SetStopLoss(_NewStopLoss);
+      				   
+      				   const uint _ResultCode = _TradeFunc.ResultRetcode();
+      				} else {
+      				   Print("PositionModify failed with error #", GetLastError());
+      				} 
+   	         }
+            }
+            
+            break;
+         }
+      }
+   }
+}
+
+void CJTradeManager::HandleMakeDeal(const ulong p_Ticket) {
+   ForEachCObject(_CJTrade, m_CJTrades) {
+	   if(((CJTrade*)_CJTrade).GetTicket() == p_Ticket) {
+	      if(((CJTrade*)_CJTrade).GetState() != Trade::State::POSITION) {
+	         ((CJTrade*)_CJTrade).SetState(Trade::State::POSITION);
+	      } else {
+	         m_CJTrades.DeleteCurrent();
+	      }
+	   }
+   }
 }

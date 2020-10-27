@@ -11,12 +11,15 @@
 
 class CJTrade : public Trade {
  private:
+   const ENUM_ORDER_TYPE m_OrderType;
+ 
    double m_StopLoss;
  public:
-   CJTrade(const double p_StopLoss)
-      : m_StopLoss(p_StopLoss) {}
+   CJTrade(const ulong p_Ticket, const ENUM_ORDER_TYPE p_OrderType, const double p_StopLoss)
+      : Trade(p_Ticket), m_OrderType(p_OrderType), m_StopLoss(p_StopLoss) {}
    
    void SetStopLoss(const double p_StopLoss) { m_StopLoss = p_StopLoss; }
    
    double GetStopLoss() const { return(m_StopLoss); }
+   ENUM_ORDER_TYPE GetOrderType() const { return(m_OrderType); }
 };
