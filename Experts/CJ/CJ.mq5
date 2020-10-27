@@ -19,12 +19,16 @@
 
 #include "CJTradeManager.mqh"
 
-input double               _LotSize = 0.01;
+input group                "Base settings"
+input double               LotSize = 0.01;
+input ENUM_TIMEFRAMES      TimeFrame = PERIOD_H1;
 
-MovingAverageSettings		_FastTrendMASettings(_Symbol, PERIOD_H1, MODE_EMA, PRICE_CLOSE, 8, 0);
-MovingAverageSettings		_SlowTrendMASettings(_Symbol, PERIOD_H1, MODE_EMA, PRICE_CLOSE, 21, 0);
+input group                "Additional condtions"
+input double               RewardRatio = 1.5;
+input uint                 PipTradeOffset = 5;
+input uint                 MinSignalPointsToTrade = 10;
 
-IchimokuSettings           _IchimokuSettings(_Symbol, PERIOD_H1, 9, 26, 52, 0);
+IchimokuSettings           _IchimokuSettings(_Symbol, TimeFrame, 9, 26, 52, 0);
 
 ObjectBuffer               _MarkersBuffer("Marker", 9999);
 
@@ -51,7 +55,7 @@ void OnTick() {
    UpdatePredefinedVars();
    //+------------------------------------------------------------------+
    
-   const bool _IsNewHour = IsNewBar(PERIOD_H1);
+   const bool _IsNewHour = IsNewBar(TimeFrame);
    
    // Crossover analysis
    if(_IsNewHour) {
@@ -63,7 +67,7 @@ void OnTick() {
       double _ClosePricesTwoCurr[2]; _ClosePricesTwoCurr[0] = Close[1]; _ClosePricesTwoCurr[1] = Close[2];
       double _IchimokuSenkouSpanATwoCurr[], _IchimokuSenkouSpanBTwoCurr[]; GetSenkouSpan(_IchimokuTwoCurr, _IchimokuSenkouSpanATwoCurr, _IchimokuSenkouSpanBTwoCurr);
       
-      _CJTradeManager.AnalyzeTrades(_IchimokuSenkouSpanATwoCurr[0], _IchimokuSenkouSpanBTwoCurr[0], 5);
+      _CJTradeManager.AnalyzeTrades(_IchimokuSenkouSpanATwoCurr[0], _IchimokuSenkouSpanBTwoCurr[0], PipTradeOffset);
       
       // Analysis KijunSen Trend
       double _IchimokuTwoKijunSen[]; GetKijunSen(_IchimokuTwoPrev, _IchimokuTwoKijunSen);
@@ -136,12 +140,12 @@ void OnTick() {
                _Points += 4;
             }
             
-            if(_Points >= 10) {
+            if(_Points >= MinSignalPointsToTrade) {
                if(_TrendState == Trend::State::VALID_UPTREND) {
-                  _CJTradeManager.TryOpenOrder(ORDER_TYPE_BUY, _LotSize, _IchimokuSenkouSpanATwoPrev[0], _IchimokuSenkouSpanBTwoPrev[0], _ClosePricesTwoPrev[0], 5);
+                  _CJTradeManager.TryOpenOrder(ORDER_TYPE_BUY, LotSize, _IchimokuSenkouSpanATwoPrev[0], _IchimokuSenkouSpanBTwoPrev[0], _ClosePricesTwoPrev[0], RewardRatio, PipTradeOffset);
                }
                if(_TrendState == Trend::State::VALID_DOWNTREND) {
-                  _CJTradeManager.TryOpenOrder(ORDER_TYPE_SELL, _LotSize, _IchimokuSenkouSpanATwoPrev[0], _IchimokuSenkouSpanBTwoPrev[0], _ClosePricesTwoPrev[0], 5);
+                  _CJTradeManager.TryOpenOrder(ORDER_TYPE_SELL, LotSize, _IchimokuSenkouSpanATwoPrev[0], _IchimokuSenkouSpanBTwoPrev[0], _ClosePricesTwoPrev[0], RewardRatio, PipTradeOffset);
                }
                
                //if(_IsPriceKijunSen) {
