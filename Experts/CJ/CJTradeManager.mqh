@@ -25,25 +25,25 @@ class CJTradeManager : public _TradeManager {
  	void HandleOrderDelete(const ulong p_Ticket);
  	void HandleMakeDeal(const ulong p_Ticket);
  	
- 	void AnalyzeTrades(const double p_IchimokuSenkouSpanA, const double p_IchimokuSenkouSpanB, const uint p_PipOffset);
+ 	void AnalyzeTrades(const double p_IchimokuSenkouSpanA, const double p_IchimokuSenkouSpanB, const uint p_PipTradeOffset);
  	
-   bool TryOpenOrder(const ENUM_ORDER_TYPE p_OrderType, const double p_LotSize, const double p_IchimokuSenkouSpanA, const double p_IchimokuSenkouSpanB, const double p_CloseCandlePrice, const uint p_PipOffset);
+   bool TryOpenOrder(const ENUM_ORDER_TYPE p_OrderType, const double p_LotSize, const double p_IchimokuSenkouSpanA, const double p_IchimokuSenkouSpanB, const double p_CloseCandlePrice, const double p_RewardRatio, const uint p_PipTradeOffset);
 };
 
 CJTradeManager::CJTradeManager()
    : m_PipValue(GetForexPipValue()) {}
 
-bool CJTradeManager::TryOpenOrder(const ENUM_ORDER_TYPE p_OrderType, const double p_LotSize, const double p_IchimokuSenkouSpanA, const double p_IchimokuSenkouSpanB, const double p_CloseCandlePrice, const uint p_PipOffset) {
+bool CJTradeManager::TryOpenOrder(const ENUM_ORDER_TYPE p_OrderType, const double p_LotSize, const double p_IchimokuSenkouSpanA, const double p_IchimokuSenkouSpanB, const double p_CloseCandlePrice, const double p_RewardRatio, const uint p_PipTradeOffset) {
    double _StopLoss = DBL_EPSILON, _Distance = DBL_EPSILON, _TakeProf = DBL_EPSILON;
    ulong _ResultTicket = -1;
    
    switch(p_OrderType) {
       case ORDER_TYPE_BUY: {
-         _StopLoss = MathMin(p_IchimokuSenkouSpanA, p_IchimokuSenkouSpanB) - p_PipOffset * m_PipValue;
-         _Distance = GetNumPipsBetweenPrices(p_CloseCandlePrice, _StopLoss, m_PipValue);
-         _TakeProf = p_CloseCandlePrice + (_Distance * 1.5) * m_PipValue;
+         _StopLoss = MathMin(p_IchimokuSenkouSpanA, p_IchimokuSenkouSpanB) - p_PipTradeOffset * m_PipValue;
+         _Distance = GetNumPipsBetweenPrices(Bid, _StopLoss, m_PipValue);
+         _TakeProf = Bid + (_Distance * p_RewardRatio) * m_PipValue;
          
-         if(_TradeFunc.Buy(p_LotSize, _Symbol, 0.0, NormalizeDouble(_StopLoss, _Digits), NormalizeDouble(_TakeProf, _Digits))) {
+         if(_TradeFunc.Buy(p_LotSize, _Symbol, Bid, NormalizeDouble(_StopLoss, _Digits), NormalizeDouble(_TakeProf, _Digits))) {
             if(_TradeFunc.ResultRetcode() == TRADE_RETCODE_DONE) {
                _ResultTicket = _TradeFunc.ResultOrder();
             }
@@ -54,11 +54,11 @@ bool CJTradeManager::TryOpenOrder(const ENUM_ORDER_TYPE p_OrderType, const doubl
          break;
       }
       case ORDER_TYPE_SELL: {
-         _StopLoss = MathMax(p_IchimokuSenkouSpanA, p_IchimokuSenkouSpanB) + p_PipOffset * m_PipValue;
-         _Distance = GetNumPipsBetweenPrices(p_CloseCandlePrice, _StopLoss, m_PipValue);
-         _TakeProf = p_CloseCandlePrice - (_Distance * 1.5) * m_PipValue;
+         _StopLoss = MathMax(p_IchimokuSenkouSpanA, p_IchimokuSenkouSpanB) + p_PipTradeOffset * m_PipValue;
+         _Distance = GetNumPipsBetweenPrices(Bid, _StopLoss, m_PipValue);
+         _TakeProf = Bid - (_Distance * p_RewardRatio) * m_PipValue;
          
-         if(_TradeFunc.Sell(p_LotSize, _Symbol, 0.0, NormalizeDouble(_StopLoss, _Digits), NormalizeDouble(_TakeProf, _Digits))) {
+         if(_TradeFunc.Sell(p_LotSize, _Symbol, Bid, NormalizeDouble(_StopLoss, _Digits), NormalizeDouble(_TakeProf, _Digits))) {
             if(_TradeFunc.ResultRetcode() == TRADE_RETCODE_DONE) {
                _ResultTicket = _TradeFunc.ResultOrder();
             }
@@ -81,13 +81,13 @@ bool CJTradeManager::TryOpenOrder(const ENUM_ORDER_TYPE p_OrderType, const doubl
    return(_ResultTicket != -1);
 }
 
-void CJTradeManager::AnalyzeTrades(const double p_IchimokuSenkouSpanA, const double p_IchimokuSenkouSpanB, const uint p_PipOffset) {
+void CJTradeManager::AnalyzeTrades(const double p_IchimokuSenkouSpanA, const double p_IchimokuSenkouSpanB, const uint p_PipTradeOffset) {
    ForEachCObject(_CJTrade, m_CJTrades) {
       double _StopLoss = ((CJTrade*)_CJTrade).GetStopLoss();
       
       switch(((CJTrade*)_CJTrade).GetOrderType()) {
          case ORDER_TYPE_BUY: {
-            const double _NewStopLoss = MathMin(p_IchimokuSenkouSpanA, p_IchimokuSenkouSpanB) - (m_PipValue * p_PipOffset);
+            const double _NewStopLoss = MathMin(p_IchimokuSenkouSpanA, p_IchimokuSenkouSpanB) - (m_PipValue * p_PipTradeOffset);
             
             if(p_IchimokuSenkouSpanA > p_IchimokuSenkouSpanB &&
                _NewStopLoss > _StopLoss) {
@@ -106,7 +106,7 @@ void CJTradeManager::AnalyzeTrades(const double p_IchimokuSenkouSpanA, const dou
             break;
          }
          case ORDER_TYPE_SELL: {
-            const double _NewStopLoss = MathMax(p_IchimokuSenkouSpanA, p_IchimokuSenkouSpanB) + (m_PipValue * p_PipOffset);
+            const double _NewStopLoss = MathMax(p_IchimokuSenkouSpanA, p_IchimokuSenkouSpanB) + (m_PipValue * p_PipTradeOffset);
             
             if(p_IchimokuSenkouSpanB > p_IchimokuSenkouSpanA &&
                _NewStopLoss < _StopLoss) {
