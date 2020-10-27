@@ -60,6 +60,11 @@ void OnTick() {
       Ichimoku _IchimokuOnePrev[]; IndicatorParser::GetIchimokuValues(_IchimokuOnePrev, _IchimokuSettings, 2, 2,  0,   0);
       Ichimoku _IchimokuOneShif[]; IndicatorParser::GetIchimokuValues(_IchimokuOneShif, _IchimokuSettings, 2, 2, 27, -25);
       
+      double _ClosePricesTwoCurr[2]; _ClosePricesTwoCurr[0] = Close[1]; _ClosePricesTwoCurr[1] = Close[2];
+      double _IchimokuSenkouSpanATwoCurr[], _IchimokuSenkouSpanBTwoCurr[]; GetSenkouSpan(_IchimokuTwoCurr, _IchimokuSenkouSpanATwoCurr, _IchimokuSenkouSpanBTwoCurr);
+      
+      _CJTradeManager.AnalyzeTrades(_IchimokuSenkouSpanATwoCurr[0], _IchimokuSenkouSpanBTwoCurr[0], 5);
+      
       // Analysis KijunSen Trend
       double _IchimokuTwoKijunSen[]; GetKijunSen(_IchimokuTwoPrev, _IchimokuTwoKijunSen);
       _KijunSenTrend.AnalyzeByLineDirection(_IchimokuTwoKijunSen[1], _IchimokuTwoKijunSen[0]);
@@ -67,7 +72,7 @@ void OnTick() {
       Trend::State _TrendState = _KijunSenTrend.GetSelectedTrend().GetState();
       
       Comment(StringFormat("Trend direction: %s", EnumToString(_TrendState)));
-      
+
       // Analysis Price/Cloud Crossover
       double _ClosePricesTwoPrev[2]; _ClosePricesTwoPrev[0] = Close[2]; _ClosePricesTwoPrev[1] = Close[3];
       double _IchimokuSenkouSpanATwoPrev[], _IchimokuSenkouSpanBTwoPrev[]; GetSenkouSpan(_IchimokuTwoPrev, _IchimokuSenkouSpanATwoPrev, _IchimokuSenkouSpanBTwoPrev);
@@ -83,9 +88,6 @@ void OnTick() {
       }
       
       if(_IsPrevCrosSenkouSpanA && _IsPrevCrosSenkouSpanB) {
-         double _ClosePricesTwoCurr[2]; _ClosePricesTwoCurr[0] = Close[1]; _ClosePricesTwoCurr[1] = Close[2];
-         double _IchimokuSenkouSpanATwoCurr[], _IchimokuSenkouSpanBTwoCurr[]; GetSenkouSpan(_IchimokuTwoCurr, _IchimokuSenkouSpanATwoCurr, _IchimokuSenkouSpanBTwoCurr);
-         
          Crossover *_SelectedCrossover = _PriceCloudCrossover.GetSelectedCrossover();
          
          const bool _IsCrossoverSenkouSpanA = _PriceCloudCrossover.AnalyzeByValueComparer(Time[1], _ClosePricesTwoCurr, _IchimokuSenkouSpanATwoCurr) != Crossover::State::INVALID_CROSSOVER;
@@ -94,13 +96,11 @@ void OnTick() {
          DrawArrowMarker(_MarkersBuffer.GetNewObjectId(), _SelectedCrossover.GetEndDateTime(), _SelectedCrossover.GetBeginValue(), _TrendState == Trend::State::VALID_UPTREND, clrBlack);
          
          if(!(_IsCrossoverSenkouSpanA || _IsCrossoverSenkouSpanB)) {
-            _IsPrevCrosSenkouSpanA = false;
-            _IsPrevCrosSenkouSpanB = false;
-            
             DrawArrowMarker(_MarkersBuffer.GetNewObjectId(), _SelectedCrossover.GetEndDateTime(), _SelectedCrossover.GetBeginValue(), _TrendState == Trend::State::VALID_UPTREND, clrGoldenrod);
             
-            uint _Points = 0;
-         
+            _IsPrevCrosSenkouSpanA = false;
+            _IsPrevCrosSenkouSpanB = false;
+
             double _IchimokuSenkouSpanAOneShif[], _IchimokuSenkouSpanBOneShif[]; GetSenkouSpan(_IchimokuOneShif, _IchimokuSenkouSpanAOneShif, _IchimokuSenkouSpanBOneShif);
             double _IchimokuChikouSpanShif[]; GetChikouSpan(_IchimokuOneShif, _IchimokuChikouSpanShif);
             
@@ -109,10 +109,10 @@ void OnTick() {
             bool _IsTenkanSenKijun = false;
             bool _IsChikouSpanPrice = false;
             
-            if((_TrendState == Trend::State::VALID_UPTREND && _IchimokuSenkouSpanAOneShif[0] > _IchimokuSenkouSpanBOneShif[0]) ||
-               (_TrendState == Trend::State::VALID_DOWNTREND && _IchimokuSenkouSpanAOneShif[0] < _IchimokuSenkouSpanBOneShif[0])) {
-               _IsColorCloud = true;
-               
+            uint _Points = 0;
+            
+            if(_IsColorCloud = (_TrendState == Trend::State::VALID_UPTREND && _IchimokuSenkouSpanAOneShif[0] > _IchimokuSenkouSpanBOneShif[0]) ||
+                               (_TrendState == Trend::State::VALID_DOWNTREND && _IchimokuSenkouSpanAOneShif[0] < _IchimokuSenkouSpanBOneShif[0])) {
                _Points += 5;
             }
             
@@ -122,26 +122,17 @@ void OnTick() {
             double _ClosePricesOneShif[1]; _ClosePricesOneShif[0] = Close[27];
 
             // Analysis Price/KijunSen
-            if(_PriceKijunSenRelation.AnalyzeByValueComparer(Time[2], _ClosePricesOnePrev, _IchimokuKijunSenOnePrev, _TrendState == Trend::State::VALID_UPTREND ? Relation::Type::IS_HIGHER : Relation::Type::IS_LOWER) != Relation::State::INVALID_RELATION) {
-               //DrawArrowMarker(_MarkersBuffer.GetNewObjectId(), _PriceKijunSenRelation.GetSelectedRelation().GetBeginDateTime(), _ClosePricesOnePrev[0], _TrendState == Trend::State::VALID_UPTREND, clrBlue);
-               _IsPriceKijunSen = true;
-               
+            if(_IsPriceKijunSen = (_PriceKijunSenRelation.AnalyzeByValueComparer(Time[2], _ClosePricesOnePrev, _IchimokuKijunSenOnePrev, _TrendState == Trend::State::VALID_UPTREND ? Relation::Type::IS_HIGHER : Relation::Type::IS_LOWER) != Relation::State::INVALID_RELATION)) {
                _Points += 5;
             }
             
             // Analysis TenkanSen/KijunSen
-            if(_TenkanSenKijunSenRelation.AnalyzeByValueComparer(Time[2], _IchimokuTenkanSenOnePrev, _IchimokuKijunSenOnePrev, _TrendState == Trend::State::VALID_UPTREND ? Relation::Type::IS_HIGHER : Relation::Type::IS_LOWER) != Relation::State::INVALID_RELATION) {
-               //DrawArrowMarker(_MarkersBuffer.GetNewObjectId(), _TenkanSenKijunSenRelation.GetSelectedRelation().GetBeginDateTime(), _ClosePricesOnePrev[0], _TrendState == Trend::State::VALID_UPTREND, clrRed);
-               _IsTenkanSenKijun = true;
-               
+            if(_IsTenkanSenKijun = (_TenkanSenKijunSenRelation.AnalyzeByValueComparer(Time[2], _IchimokuTenkanSenOnePrev, _IchimokuKijunSenOnePrev, _TrendState == Trend::State::VALID_UPTREND ? Relation::Type::IS_HIGHER : Relation::Type::IS_LOWER) != Relation::State::INVALID_RELATION)) {
                _Points += 4;
             }
             
             // Analysis ChikouSpan/Price
-            if(_ChikouSpanPriceRelation.AnalyzeByValueComparer(Time[27], _IchimokuChikouSpanShif, _ClosePricesOneShif, _TrendState == Trend::State::VALID_UPTREND ? Relation::Type::IS_HIGHER : Relation::Type::IS_LOWER) != Relation::State::INVALID_RELATION) {
-               //DrawArrowMarker(_MarkersBuffer.GetNewObjectId(), _ChikouSpanPriceRelation.GetSelectedRelation().GetBeginDateTime(), _ClosePricesOnePrev[0], _TrendState == Trend::State::VALID_UPTREND, clrLawnGreen);
-               _IsChikouSpanPrice = true;
-               
+            if(_IsChikouSpanPrice = (_ChikouSpanPriceRelation.AnalyzeByValueComparer(Time[27], _IchimokuChikouSpanShif, _ClosePricesOneShif, _TrendState == Trend::State::VALID_UPTREND ? Relation::Type::IS_HIGHER : Relation::Type::IS_LOWER) != Relation::State::INVALID_RELATION)) {
                _Points += 4;
             }
             
@@ -179,7 +170,7 @@ void OnTradeTransaction(const MqlTradeTransaction &p_Trans, const MqlTradeReques
          
          switch(p_Trans.type) {
             case TRADE_TRANSACTION_DEAL_ADD: {
-               //_ReggieTradeManager.HandleMakeDeal(_PositionID);
+               _CJTradeManager.HandleMakeDeal(_PositionID);
             
                break;
             }
@@ -195,9 +186,9 @@ void OnTradeTransaction(const MqlTradeTransaction &p_Trans, const MqlTradeReques
             break;
          }
          case TRADE_TRANSACTION_ORDER_DELETE: {
-            if(p_Trans.order_state == ORDER_STATE_CANCELED) {
-               //_ReggieTradeManager.HandleOrderDelete(p_Trans.order);
-            }
+            /*if(p_Trans.order_state == ORDER_STATE_FILLED) {
+               _CJTradeManager.HandleMakeDeal(p_Trans.order);
+            }*/
             
             break;
          }
